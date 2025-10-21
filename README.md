@@ -4,11 +4,20 @@
 
 ## 特性
 
-- **可视化模型管理**: 中文GUI界面，用于添加、编辑和删除模型配置
-- **轻松模型切换**: 一键在不同模型之间切换
-- **环境变量管理**: 自动生成环境变量命令
-- **安全的API密钥存储**: 加密存储API密钥
-- **跨平台支持**: 支持Windows、macOS和Linux
+### 界面特性
+- **💎 现代化UI界面**: 支持PyQt现代化界面，专业外观设计
+- **🎨 多种界面选择**: PyQt现代化界面 / Tkinter增强界面 / Tkinter经典界面
+- **🌙 深色主题**: 护眼深色主题，视觉效果舒适
+- **📱 响应式布局**: 适应不同屏幕尺寸，支持窗口缩放
+
+### 核心功能
+- **🔧 可视化模型管理**: 中文GUI界面，用于添加、编辑和删除模型配置
+- **🚀 智能模型切换**: 一键集成环境变量和系统变量设置
+- **📁 配置文件管理**: 导入/导出JSON配置文件，方便备份和分享
+- **⚡ 环境变量管理**: 自动生成并设置环境变量命令
+- **🛡️ 安全的API密钥存储**: 加密存储API密钥
+- **🌐 跨平台支持**: 支持Windows、macOS和Linux
+- **🎯 智能权限管理**: 自动检测管理员权限，友好提示
 
 ## Installation
 
@@ -36,10 +45,43 @@
 
 ## 使用方法
 
+### 安装依赖
+
+```bash
+# 使用conda (推荐)
+conda env create -f environment.yml
+conda activate Claude
+
+# 使用pip
+pip install -r requirements.txt
+```
+
 ### 运行应用程序
 
 ```bash
+# 主程序（支持多种界面选择）
 python main.py
+
+# PyQt专用启动（如果只想使用PyQt界面）
+python main_pyqt.py
+
+# 经典Tkinter界面
+python -c "from claude_model_manager.gui import ModelManagerGUI; app = ModelManagerGUI(); app.run()"
+
+# 增强Tkinter界面
+python -c "from claude_model_manager.modern_gui import ModernModelManagerGUI; app = ModernModelManagerGUI(); app.run()"
+```
+
+启动后会显示界面选择菜单：
+```
+🎯 Claude Code 模型管理器
+========================================
+请选择界面类型:
+1. PyQt 现代化界面 (推荐)
+2. Tkinter 增强界面
+3. Tkinter 经典界面
+========================================
+请输入选择 (1-3, 默认为1):
 ```
 
 ### 添加模型
@@ -56,6 +98,35 @@ python main.py
 1. 从列表中选择一个模型
 2. 点击"切换到模型"或双击模型
 3. 工具将生成必要的环境变量命令
+
+### 导入/导出配置文件
+
+#### 导入配置
+1. 点击"导入配置文件"按钮
+2. 选择JSON格式的配置文件
+3. 系统会自动导入所有模型配置和当前模型设置
+
+#### 导出配置
+1. 点击"导出配置文件"按钮
+2. 选择保存位置和文件名
+3. 系统会导出当前所有模型配置和状态
+
+#### 配置文件格式示例
+```json
+{
+  "models": [
+    {
+      "name": "DeepSeek-V3.1-Terminus",
+      "base_url": "https://api.siliconflow.cn/",
+      "model": "deepseek-ai/DeepSeek-V3.1-Terminus",
+      "api_key": "your_api_key_here"
+    }
+  ],
+  "current_model": "DeepSeek-V3.1-Terminus",
+  "export_time": "2024-10-21",
+  "version": "1.0"
+}
+```
 
 ### 导出环境变量
 
@@ -82,19 +153,48 @@ API密钥: your_silicon_cloud_api_key
 API密钥: your_anthropic_api_key
 ```
 
+## 界面特性
+
+### 现代化界面设计
+- **🎨 深色主题**: 护眼深色背景，减少视觉疲劳
+- **🚀 直观布局**: 清晰的卡片式设计，分区合理
+- **✨ 精美图标**: 丰富的视觉元素提升用户体验
+- **📊 状态指示**: 实时状态显示，操作反馈明确
+- **🔧 智能帮助**: 友好的提示信息和错误处理
+
+### 界面功能区域
+1. **🎯 顶部状态栏** - 显示当前状态和程序信息
+2. **📊 当前模型卡片** - 清晰展示当前激活的模型
+3. **📋 模型列表区域** - 现代化树形表格显示所有模型
+4. **⚡ 快速操作栏** - 常用功能一键可达
+5. **🔧 环境变量区域** - 显示和复制环境变量命令
+
 ## Project Structure
 
 ```
 ClaudeModelSelect/
-├── main.py                 # Main entry point
-├── requirements.txt        # Python dependencies
-├── README.md              # This file
-└── claude_model_manager/  # Main package
-    ├── __init__.py        # Package initialization
-    ├── config.py          # Configuration management
-    ├── model_manager.py   # Core model operations
-    └── gui.py            # GUI interface
+├── main.py                 # 主程序入口（支持多种界面选择）
+├── main_pyqt.py            # PyQt专用启动脚本
+├── requirements.txt        # Python依赖
+├── README.md              # 本文档
+├── test_new_features.py   # 功能测试
+├── test_modern_gui.py     # 现代化GUI测试
+└── claude_model_manager/  # 主要包
+    ├── __init__.py        # 包初始化
+    ├── config.py          # 配置管理
+    ├── model_manager.py   # 核心模型操作
+    ├── gui.py             # 原始Tkinter GUI界面
+    ├── modern_gui.py      # 增强Tkinter现代化界面
+    └── pyqt_gui.py        # PyQt现代化界面（支持导入导出）
 ```
+
+### 主要特性对比
+
+| 界面类型 | 外观效果 | 性能 | 功能完整性 | 推荐场景 |
+|---------|---------|------|-----------|----------|
+| **PyQt界面** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 生产环境，需要专业外观 |
+| **增强Tkinter** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 平衡性能和功能性 |
+| **经典Tkinter** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 兼容性要求高 |
 
 ## Configuration Storage
 

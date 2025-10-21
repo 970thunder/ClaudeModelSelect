@@ -20,10 +20,10 @@ class ModelManager:
     def __init__(self, config_manager: ConfigManager):
         self.config_manager = config_manager
 
-    def switch_model(self, model_name: str) -> bool:
-        """Switch to a different model"""
+    def switch_model(self, model_name: str, auto_set_environment: bool = True) -> Dict[str, str]:
+        """Switch to a different model with optional environment variable setup"""
         if not self.config_manager.set_current_model(model_name):
-            return False
+            return {"success": False, "message": "切换模型失败"}
 
         # Export environment variables with smart authentication
         env_vars = self.config_manager.export_environment_vars()
@@ -34,11 +34,35 @@ class ModelManager:
             if var not in env_vars:
                 os.environ.pop(var, None)
 
-        # Set new environment variables
+        # Set new environment variables in current process
         for key, value in env_vars.items():
             os.environ[key] = value
 
-        return True
+        # Auto-set environment variables (current process and user environment)
+        env_result = {"success": True, "message": "环境变量已在当前进程中设置"}
+        if auto_set_environment:
+            env_result = self.execute_environment_commands()
+
+        # Try to set system environment variables if running as admin
+        system_result = {"success": False, "message": "未尝试设置系统环境变量"}
+        if auto_set_environment and self.is_admin() and env_result["success"]:
+            # Only set system environment if current process setting was successful
+            system_result = self.set_system_environment_vars()
+
+        # Combine results
+        combined_message = f"已切换到模型 '{model_name}'"
+        combined_message += f"\n- {env_result['message']}"
+        if system_result["success"]:
+            combined_message += f"\n- {system_result['message']}"
+        elif system_result["message"] != "未尝试设置系统环境变量":
+            combined_message += f"\n- 系统环境变量: {system_result['message']}"
+
+        return {
+            "success": True,
+            "message": combined_message.strip(),
+            "environment_result": env_result,
+            "system_result": system_result
+        }
 
     def get_current_model_info(self) -> Optional[Dict]:
         """Get information about the current model"""

@@ -1,7 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -c \"\nfrom claude_model_manager.config import ConfigManager, ModelConfig\nfrom claude_model_manager.model_manager import ModelManager\n\n# 测试智能认证切换\nconfig_manager = ConfigManager()\nmodel_manager = ModelManager(config_manager)\n\n# 测试Anthropic官方API\nprint(''=== 测试Anthropic官方API ==='')\nconfig_manager.models = {}\nconfig_manager.add_model(ModelConfig(''AnthropicModel'', ''https://api.anthropic.com/'', ''claude-3-sonnet'', ''test-anthropic-key''))\nconfig_manager.set_current_model(''AnthropicModel'')\nenv_vars = config_manager.export_environment_vars()\nprint(''环境变量:'', env_vars)\n\n# 测试其他厂商API\nprint(''\\n=== 测试其他厂商API ==='')\nconfig_manager.models = {}\nconfig_manager.add_model(ModelConfig(''OtherModel'', ''https://api.siliconflow.cn/'', ''deepseek-v3'', ''test-other-key''))\nconfig_manager.set_current_model(''OtherModel'')\nenv_vars = config_manager.export_environment_vars()\nprint(''环境变量:'', env_vars)\n\")"
+      "Bash(python -c \"\nimport json\nprint(''JSON模块测试通过'')\nconfig = {\n    ''models'': [{\n        ''name'': ''测试模型'',\n        ''base_url'': ''https://api.test.com/'',\n        ''model'': ''test-model'',\n        ''api_key'': ''test-key''\n    }],\n    ''current_model'': ''测试模型''\n}\nx = json.dumps(config, indent=2)\nprint(''JSON序列化测试通过'')\nprint(''导入导出功能基础测试完成'')\n\")"
     ],
     "deny": [],
     "ask": []

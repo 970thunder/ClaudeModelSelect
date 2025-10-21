@@ -234,25 +234,34 @@ class ModelManagerGUI:
             messagebox.showwarning("警告", "请选择要切换到的模型。")
             return
 
-        if self.model_manager.switch_model(model_name):
-            # Auto-set environment variables
-            result = self.model_manager.execute_environment_commands()
+        result = self.model_manager.switch_model(model_name)
 
-            if result["success"]:
-                messagebox.showinfo("成功",
-                    f"已切换到模型 '{model_name}'！\n\n"
-                    f"{result['message']}\n\n"
-                    "注意：环境变量仅在当前进程生效。重启Claude Code后需要重新设置。"
-                )
+        if result["success"]:
+            # Check if both environment and system settings were successful
+            env_success = result.get("environment_result", {}).get("success", False)
+            system_success = result.get("system_result", {}).get("success", False)
+
+            message = f"已切换到模型 '{model_name}'！\n\n"
+            message += result["message"] + "\n\n"
+
+            if system_success:
+                message += "✅ 系统和当前进程环境变量都已成功设置，重启后仍然有效。"
+            elif env_success:
+                message += "⚠️ 当前进程环境变量已设置，但系统环境变量设置失败。重启Claude Code后需要重新设置。"
             else:
-                messagebox.showwarning("部分成功",
-                    f"已切换到模型 '{model_name}'，但环境变量设置失败：\n"
-                    f"{result['message']}"
-                )
+                message = f"已切换到模型 '{model_name}'，但环境变量设置失败：\n"
+                message += result.get("message", "未知错误")
+
+            if system_success:
+                messagebox.showinfo("成功", message)
+            elif env_success:
+                messagebox.showwarning("部分成功", message)
+            else:
+                messagebox.showerror("错误", message)
 
             self.refresh_model_list()
         else:
-            messagebox.showerror("错误", "切换模型失败。")
+            messagebox.showerror("错误", result.get("message", "切换模型失败。"))
 
     def on_model_double_click(self, event):
         """Handle double-click on model"""
@@ -287,45 +296,64 @@ class ModelManagerGUI:
                   command=export_dialog.destroy).pack(pady=10)
 
     def auto_set_environment(self):
-        """Automatically set environment variables in current process"""
+        """Automatically set environment variables in current process only (no system-wide)"""
         model_name = self.get_selected_model()
         if not model_name:
             messagebox.showwarning("警告", "请选择要设置环境变量的模型。")
             return
 
-        # First switch to the model
-        if not self.model_manager.switch_model(model_name):
-            messagebox.showerror("错误", "切换模型失败。")
-            return
-
-        # Then execute environment commands
-        result = self.model_manager.execute_environment_commands()
+        # Switch model with auto_set_environment=False to avoid double-setting
+        result = self.model_manager.switch_model(model_name, auto_set_environment=False)
 
         if result["success"]:
-            messagebox.showinfo("成功", result["message"])
+            # Execute only current process environment commands
+            env_result = self.model_manager.execute_environment_commands()
+
+            if env_result["success"]:
+                messagebox.showinfo("成功",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"{env_result['message']}\n\n"
+                    "注意：环境变量仅在当前进程生效。\n"
+                    "要设置系统环境变量，请使用'设置系统环境变量'按钮。"
+                )
+            else:
+                messagebox.showwarning("部分成功",
+                    f"已切换到模型 '{model_name}'，但环境变量设置失败：\n"
+                    f"{env_result['message']}"
+                )
+
             self.refresh_model_list()
         else:
-            messagebox.showerror("错误", result["message"])
+            messagebox.showerror("错误", result.get("message", "切换模型失败。"))
 
     def set_system_environment(self):
-        """Set system environment variables (requires admin)"""
+        """Set system environment variables independently (requires admin)"""
         model_name = self.get_selected_model()
         if not model_name:
             messagebox.showwarning("警告", "请选择要设置系统环境变量的模型。")
             return
 
-        # First switch to the model
-        if not self.model_manager.switch_model(model_name):
-            messagebox.showerror("错误", "切换模型失败。")
+        # Switch model first, but don't auto-set environment
+        switch_result = self.model_manager.switch_model(model_name, auto_set_environment=False)
+
+        if not switch_result["success"]:
+            messagebox.showerror("错误", switch_result.get("message", "切换模型失败。"))
             return
 
         # Check if already running as admin
         if self.model_manager.is_admin():
             result = self.model_manager.set_system_environment_vars()
             if result["success"]:
-                messagebox.showinfo("成功", result["message"])
+                messagebox.showinfo("成功",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"{result['message']}\n\n"
+                    "✅ 系统环境变量已设置，重启后仍然有效。"
+                )
             else:
-                messagebox.showerror("错误", result["message"])
+                messagebox.showerror("错误",
+                    f"已切换到模型 '{model_name}'，但系统环境变量设置失败：\n\n"
+                    f"{result['message']}"
+                )
         else:
             # Ask user if they want to restart with admin privileges
             response = messagebox.askyesno(

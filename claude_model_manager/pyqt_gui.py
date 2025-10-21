@@ -1,0 +1,682 @@
+"""
+PyQt-based modern GUI interface for Claude Code Model Manager
+"""
+
+import os
+import json
+import sys
+from pathlib import Path
+from typing import Optional, Dict, List
+
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+                            QWidget, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+                            QTabWidget, QTextEdit, QMessageBox, QInputDialog, QFileDialog,
+                            QHeaderView, QSplitter, QFrame, QProgressBar, QComboBox)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
+
+from .config import ConfigManager, ModelConfig
+from .model_manager import ModelManager
+
+
+class WorkerThread(QThread):
+    """Worker thread for connection testing"""
+    finished = pyqtSignal(dict)
+
+    def __init__(self, model_manager, model_name):
+        super().__init__()
+        self.model_manager = model_manager
+        self.model_name = model_name
+
+    def run(self):
+        try:
+            result = self.model_manager.test_model_connection(self.model_name)
+            self.finished.emit(result)
+        except Exception as e:
+            self.finished.emit({"success": False, "error": str(e)})
+
+
+class ModernPyQtGUI(QMainWindow):
+    """Modern PyQt GUI for model management"""
+
+    def __init__(self):
+        super().__init__()
+
+        # Initialize managers
+        self.config_manager = ConfigManager()
+        self.model_manager = ModelManager(self.config_manager)
+
+        # Setup UI
+        self.setup_ui()
+        self.setup_styles()
+        self.load_initial_data()
+
+        # File import/export
+        self.import_file = None
+        self.export_file = None
+
+    def setup_ui(self):
+        """Setup the main UI components"""
+        self.setWindowTitle("Claude Code 模型管理器 (PyQt)")
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+
+        # Main layout
+        main_layout = QVBoxLayout(central_widget)
+
+        # Header
+        header_layout = self.create_header()
+        main_layout.addLayout(header_layout)
+
+        # Tabs
+        self.tabs = QTabWidget()
+
+        # Models tab
+        models_tab = self.create_models_tab()
+        self.tabs.addTab(models_tab, "📋 模型管理")
+
+        # Settings tab
+        settings_tab = self.create_settings_tab()
+        self.tabs.addTab(settings_tab, "⚙️ 设置")
+
+        main_layout.addWidget(self.tabs)
+
+        # Status bar
+        self.statusBar().showMessage("就绪")
+
+    def setup_styles(self):
+        """Setup modern styling"""
+        # Set dark theme
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            QTabWidget::pane {
+                border: 1px solid #444;
+                background-color: #2d2d2d;
+            }
+            QTabBar::tab {
+                background-color: #333;
+                color: #fff;
+                padding: 8px 16px;
+                border: 1px solid #444;
+            }
+            QTabBar::tab:selected {
+                background-color: #007acc;
+            }
+            QTableWidget {
+                background-color: #252526;
+                color: #cccccc;
+                gridline-color: #444;
+            }
+            QTableWidget::item:selected {
+                background-color: #007acc;
+            }
+            QHeaderView::section {
+                background-color: #333;
+                color: #fff;
+                padding: 8px;
+                border: 1px solid #444;
+            }
+            QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QPushButton:pressed {
+                background-color: #004578;
+            }
+            QPushButton.danger {
+                background-color: #d13438;
+            }
+            QPushButton.danger:hover {
+                background-color: #b0262a;
+            }
+            QPushButton.success {
+                background-color: #107c10;
+            }
+            QPushButton.success:hover {
+                background-color: #0e6b0e;
+            }
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #cccccc;
+                border: 1px solid #444;
+                border-radius: 4px;
+                font-family: 'Consolas', monospace;
+                font-size: 12px;
+            }
+            QLabel {
+                color: #cccccc;
+            }
+        """)
+
+    def create_header(self):
+        """Create header layout"""
+        header_layout = QHBoxLayout()
+
+        # Title
+        title = QLabel("🎯 Claude Code 模型管理器")
+        title.setFont(QFont("Arial", 16, QFont.Bold))
+        header_layout.addWidget(title)
+
+        header_layout.addStretch()
+
+        # Current model info
+        self.current_model_label = QLabel("当前模型: 未选择")
+        self.current_model_label.setStyleSheet("color: #4ec9b0; font-weight: bold;")
+        header_layout.addWidget(self.current_model_label)
+
+        return header_layout
+
+    def create_models_tab(self):
+        """Create models management tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Toolbar
+        toolbar_layout = QHBoxLayout()
+
+        # Model actions
+        self.add_btn = QPushButton("➕ 添加模型")
+        self.add_btn.clicked.connect(self.add_model)
+        toolbar_layout.addWidget(self.add_btn)
+
+        self.edit_btn = QPushButton("✏️ 编辑模型")
+        self.edit_btn.clicked.connect(self.edit_model)
+        toolbar_layout.addWidget(self.edit_btn)
+
+        self.delete_btn = QPushButton("🗑️ 删除模型")
+        self.delete_btn.clicked.connect(self.delete_model)
+        self.delete_btn.setProperty("class", "danger")
+        self.delete_btn.setStyleSheet("color: white;")
+        toolbar_layout.addWidget(self.delete_btn)
+
+        toolbar_layout.addStretch()
+
+        # Import/Export
+        self.import_btn = QPushButton("📥 导入配置文件")
+        self.import_btn.clicked.connect(self.import_config)
+        toolbar_layout.addWidget(self.import_btn)
+
+        self.export_btn = QPushButton("📤 导出配置文件")
+        self.export_btn.clicked.connect(self.export_config)
+        toolbar_layout.addWidget(self.export_btn)
+
+        layout.addLayout(toolbar_layout)
+
+        # Model table
+        self.model_table = QTableWidget()
+        self.model_table.setColumnCount(5)
+        self.model_table.setHorizontalHeaderLabels(["模型名称", "基础URL", "模型ID", "API密钥", "状态"])
+        self.model_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.model_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.model_table.doubleClicked.connect(self.on_model_double_click)
+
+        layout.addWidget(self.model_table)
+
+        # Quick actions
+        actions_layout = QHBoxLayout()
+
+        self.switch_btn = QPushButton("🚀 切换到模型")
+        self.switch_btn.clicked.connect(self.switch_to_model)
+        self.switch_btn.setProperty("class", "success")
+        self.switch_btn.setStyleSheet("color: white;")
+        actions_layout.addWidget(self.switch_btn)
+
+        self.test_btn = QPushButton("🔗 测试连接")
+        self.test_btn.clicked.connect(self.test_model_connection)
+        actions_layout.addWidget(self.test_btn)
+
+        self.auto_env_btn = QPushButton("⚡ 自动设置环境变量")
+        self.auto_env_btn.clicked.connect(self.auto_set_environment)
+        actions_layout.addWidget(self.auto_env_btn)
+
+        self.system_env_btn = QPushButton("🔧 设置系统环境变量")
+        self.system_env_btn.clicked.connect(self.set_system_environment)
+        actions_layout.addWidget(self.system_env_btn)
+
+        layout.addLayout(actions_layout)
+
+        # Environment variables
+        layout.addWidget(QLabel("环境变量命令:"))
+        self.env_text = QTextEdit()
+        self.env_text.setMaximumHeight(120)
+        self.env_text.setReadOnly(True)
+        layout.addWidget(self.env_text)
+
+        return tab
+
+    def create_settings_tab(self):
+        """Create settings tab"""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        # Theme settings
+        layout.addWidget(QLabel("主题设置:"))
+        theme_combo = QComboBox()
+        theme_combo.addItems(["深色主题", "浅色主题"])
+        theme_combo.currentTextChanged.connect(self.change_theme)
+        layout.addWidget(theme_combo)
+
+        layout.addStretch()
+
+        # Information
+        info_label = QLabel("使用说明:")
+        info_label.setStyleSheet("font-weight: bold; color: #4ec9b0;")
+        layout.addWidget(info_label)
+
+        info_text = """
+1. 点击'添加模型'创建新的模型配置
+2. 双击模型名称或点击'切换到模型'来切换模型
+3. 使用'导入/导出配置文件'来备份或分享配置
+4. '自动设置环境变量'为当前进程设置环境变量
+5. 如果需要永久设置，使用'设置系统环境变量'
+        """
+        info_widget = QTextEdit(info_text)
+        info_widget.setReadOnly(True)
+        info_widget.setMaximumHeight(150)
+        layout.addWidget(info_widget)
+
+        return tab
+
+    def load_initial_data(self):
+        """Load initial data into the UI"""
+        self.refresh_model_list()
+
+    def refresh_model_list(self):
+        """Refresh the model list"""
+        self.model_table.setRowCount(0)
+
+        models = self.model_manager.list_available_models()
+        current_model = self.model_manager.get_current_model_info()
+
+        for i, model in enumerate(models):
+            self.model_table.insertRow(i)
+
+            # Model name
+            name_item = QTableWidgetItem(model['name'])
+            self.model_table.setItem(i, 0, name_item)
+
+            # Base URL
+            url_item = QTableWidgetItem(model['base_url'])
+            self.model_table.setItem(i, 1, url_item)
+
+            # Model ID
+            model_id_item = QTableWidgetItem(model['model'])
+            self.model_table.setItem(i, 2, model_id_item)
+
+            # API Key status
+            api_status = "🔑 已设置" if model['api_key_set'] else "❌ 未设置"
+            api_item = QTableWidgetItem(api_status)
+            self.model_table.setItem(i, 3, api_item)
+
+            # Current status
+            status = "✅ 当前" if model['is_current'] else ""
+            status_item = QTableWidgetItem(status)
+            self.model_table.setItem(i, 4, status_item)
+
+            # Highlight current model
+            if model['is_current']:
+                for col in range(5):
+                    item = self.model_table.item(i, col)
+                    if item:
+                        item.setBackground(QColor('#2d2d2d'))
+
+        # Update current model label
+        if current_model:
+            self.current_model_label.setText(f"当前模型: {current_model['name']}")
+        else:
+            self.current_model_label.setText("当前模型: 未选择")
+
+        # Update environment commands
+        self.update_environment_commands()
+
+    def update_environment_commands(self):
+        """Update environment commands display"""
+        commands = self.model_manager.get_environment_commands()
+        if commands:
+            self.env_text.setPlainText('\n'.join(commands))
+        else:
+            self.env_text.setPlainText("未选择模型。请选择模型以查看环境变量命令。")
+
+    def get_selected_model(self):
+        """Get the selected model name"""
+        selection = self.model_table.selectedItems()
+        if not selection:
+            return None
+        return self.model_table.item(selection[0].row(), 0).text()
+
+    def add_model(self):
+        """Add a new model"""
+        name, ok = QInputDialog.getText(self, "添加模型", "模型名称:")
+        if not ok or not name:
+            return
+
+        base_url, ok = QInputDialog.getText(self, "添加模型", "基础URL:")
+        if not ok or not base_url:
+            return
+
+        model_id, ok = QInputDialog.getText(self, "添加模型", "模型ID:")
+        if not ok or not model_id:
+            return
+
+        api_key, ok = QInputDialog.getText(self, "添加模型", "API密钥 (可选):")
+        if not ok:
+            return
+
+        if self.model_manager.add_model(name, base_url, model_id, api_key):
+            self.refresh_model_list()
+            self.statusBar().showMessage(f"模型 '{name}' 添加成功")
+        else:
+            QMessageBox.warning(self, "错误", f"模型 '{name}' 已存在")
+
+    def edit_model(self):
+        """Edit selected model"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要编辑的模型")
+            return
+
+        model = self.config_manager.get_model(model_name)
+        if not model:
+            QMessageBox.critical(self, "错误", "选择的模型未找到")
+            return
+
+        name, ok = QInputDialog.getText(self, "编辑模型", "模型名称:", text=model.name)
+        if not ok or not name:
+            return
+
+        base_url, ok = QInputDialog.getText(self, "编辑模型", "基础URL:", text=model.base_url)
+        if not ok or not base_url:
+            return
+
+        model_id, ok = QInputDialog.getText(self, "编辑模型", "模型ID:", text=model.model)
+        if not ok or not model_id:
+            return
+
+        api_key, ok = QInputDialog.getText(self, "编辑模型", "API密钥:", text=model.api_key)
+        if not ok:
+            return
+
+        if self.model_manager.update_model(model.name, name, base_url, model_id, api_key):
+            self.refresh_model_list()
+            self.statusBar().showMessage(f"模型 '{name}' 更新成功")
+        else:
+            QMessageBox.critical(self, "错误", "更新模型失败")
+
+    def delete_model(self):
+        """Delete selected model"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要删除的模型")
+            return
+
+        reply = QMessageBox.question(self, "确认删除", f"确定要删除模型 '{model_name}' 吗？",
+                                   QMessageBox.Yes | QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            if self.model_manager.delete_model(model_name):
+                self.refresh_model_list()
+                self.statusBar().showMessage(f"模型 '{model_name}' 删除成功")
+            else:
+                QMessageBox.critical(self, "错误", "删除模型失败")
+
+    def on_model_double_click(self, index):
+        """Handle double click on model"""
+        self.switch_to_model()
+
+    def switch_to_model(self):
+        """Switch to selected model"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要切换到的模型")
+            return
+
+        result = self.model_manager.switch_model(model_name)
+
+        if result["success"]:
+            self.statusBar().showMessage(f"已切换到模型 '{model_name}'")
+
+            env_result = result.get("environment_result", {})
+            system_result = result.get("system_result", {})
+
+            message = f"✅ 已切换到模型 '{model_name}'\n"
+            message += f"环境变量: {env_result.get('message', '设置完成')}\n"
+
+            if system_result.get("success"):
+                message += "🔧 系统环境变量已永久设置"
+                QMessageBox.information(self, "成功", message)
+            else:
+                message += "⚠️ 当前进程环境变量已设置 (重启后需重新设置)"
+                QMessageBox.information(self, "成功", message)
+
+            self.refresh_model_list()
+        else:
+            QMessageBox.critical(self, "错误", result.get("message", "切换模型失败"))
+
+    def auto_set_environment(self):
+        """Auto-set environment variables"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要设置环境变量的模型")
+            return
+
+        # Switch model with auto_set_environment=False
+        result = self.model_manager.switch_model(model_name, auto_set_environment=False)
+
+        if result["success"]:
+            env_result = self.model_manager.execute_environment_commands()
+
+            if env_result["success"]:
+                QMessageBox.information(self, "成功",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"{env_result['message']}\n\n"
+                    "⚠️ 环境变量仅在当前进程生效")
+            else:
+                QMessageBox.warning(self, "部分成功",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"环境变量设置失败: {env_result['message']}")
+
+            self.refresh_model_list()
+        else:
+            QMessageBox.critical(self, "错误", result.get("message", "切换模型失败"))
+
+    def set_system_environment(self):
+        """Set system environment variables"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要设置系统环境变量的模型")
+            return
+
+        # Switch model first
+        result = self.model_manager.switch_model(model_name, auto_set_environment=False)
+
+        if not result["success"]:
+            QMessageBox.critical(self, "错误", result.get("message", "切换模型失败"))
+            return
+
+        if self.model_manager.is_admin():
+            sys_result = self.model_manager.set_system_environment_vars()
+
+            if sys_result["success"]:
+                QMessageBox.information(self, "成功",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"{sys_result['message']}\n\n"
+                    "✅ 系统环境变量已永久设置")
+            else:
+                QMessageBox.critical(self, "错误",
+                    f"已切换到模型 '{model_name}'\n\n"
+                    f"系统环境变量设置失败: {sys_result['message']}")
+        else:
+            reply = QMessageBox.question(self, "需要管理员权限",
+                "设置系统环境变量需要管理员权限。\n\n"
+                "是否重新启动程序以管理员身份运行？",
+                QMessageBox.Yes | QMessageBox.No)
+
+            if reply == QMessageBox.Yes:
+                if self.model_manager.restart_with_admin():
+                    QMessageBox.information(self, "信息", "程序将以管理员身份重新启动")
+                    self.close()
+                else:
+                    QMessageBox.critical(self, "错误", "无法以管理员身份重新启动程序")
+
+    def test_model_connection(self):
+        """Test model connection"""
+        model_name = self.get_selected_model()
+        if not model_name:
+            QMessageBox.warning(self, "警告", "请选择要测试连接的模型")
+            return
+
+        # Create progress dialog
+        progress = QMessageBox(self)
+        progress.setWindowTitle("测试连接")
+        progress.setText(f"正在测试模型 '{model_name}'...")
+        progress.setStandardButtons(QMessageBox.Cancel)
+
+        # Create worker thread
+        self.worker = WorkerThread(self.model_manager, model_name)
+        self.worker.finished.connect(lambda result: self.on_test_finished(result, progress))
+        self.worker.start()
+
+        progress.exec()
+
+    def on_test_finished(self, result, progress):
+        """Handle test completion"""
+        progress.done(0)
+
+        if result["success"]:
+            message = f"✅ {result['message']}\n"
+            if "response_time" in result:
+                message += f"⏱️ 响应时间: {result['response_time']:.2f}秒\n"
+            if "status_code" in result:
+                message += f"🔢 状态码: {result['status_code']}"
+            QMessageBox.information(self, "测试成功", message)
+        else:
+            message = f"❌ {result['error']}\n"
+            if "status_code" in result:
+                message += f"🔢 状态码: {result['status_code']}"
+            QMessageBox.critical(self, "测试失败", message)
+
+    def import_config(self):
+        """Import configuration from JSON file"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "选择配置文件", "", "JSON文件 (*.json)")
+
+        if file_path:
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+
+                # Import models
+                imported_count = 0
+                for model_data in config_data.get("models", []):
+                    name = model_data.get("name", "")
+                    base_url = model_data.get("base_url", "")
+                    model_id = model_data.get("model", "")
+                    api_key = model_data.get("api_key", "")
+
+                    if name and base_url and model_id:
+                        if self.model_manager.add_model(name, base_url, model_id, api_key):
+                            imported_count += 1
+
+                # Import current model if exists
+                current_model = config_data.get("current_model")
+                if current_model:
+                    self.model_manager.switch_model(current_model)
+
+                self.refresh_model_list()
+                self.statusBar().showMessage(f"成功导入 {imported_count} 个模型配置")
+
+            except Exception as e:
+                QMessageBox.critical(self, "导入错误", f"导入配置文件失败: {str(e)}")
+
+    def export_config(self):
+        """Export configuration to JSON file"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "保存配置文件", "claude_models.json", "JSON文件 (*.json)")
+
+        if file_path:
+            try:
+                config_data = {
+                    "models": [],
+                    "current_model": self.config_manager.current_model,
+                    "export_time": "2024-10-21",
+                    "version": "1.0"
+                }
+
+                for name, model in self.config_manager.models.items():
+                    config_data["models"].append({
+                        "name": model.name,
+                        "base_url": model.base_url,
+                        "model": model.model,
+                        "api_key": model.api_key
+                    })
+
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_data, f, indent=2, ensure_ascii=False)
+
+                self.statusBar().showMessage(f"配置已导出到: {file_path}")
+
+            except Exception as e:
+                QMessageBox.critical(self, "导出错误", f"导出配置文件失败: {str(e)}")
+
+    def change_theme(self, theme_name):
+        """Change application theme"""
+        if theme_name == "浅色主题":
+            # Light theme stylesheet
+            self.setStyleSheet("""
+                QMainWindow {
+                    background-color: #ffffff;
+                    color: #000000;
+                }
+                # Other light theme styles...
+            """)
+        else:
+            # Default dark theme
+            self.setStyleSheet("""
+                QMainWindow {
+                    background-color: #1e1e1e;
+                    color: #ffffff;
+                }
+                # Default dark theme styles...
+            """)
+
+    def closeEvent(self, event):
+        """Handle application close"""
+        reply = QMessageBox.question(self, "确认退出", "确定要退出程序吗？",
+                                   QMessageBox.Yes | QMessageBox.No)
+
+        if reply == QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
+
+
+def main():
+    """Main entry point for PyQt application"""
+    app = QApplication(sys.argv)
+
+    # Set application properties
+    app.setApplicationName("Claude Code Model Manager")
+    app.setApplicationVersion("1.0")
+
+    # Create and show main window
+    window = ModernPyQtGUI()
+    window.show()
+
+    # Execute application
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

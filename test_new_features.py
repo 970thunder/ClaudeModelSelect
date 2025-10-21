@@ -43,8 +43,24 @@ def test_all_features():
     print(f"   执行结果: {result['success']}")
     print(f"   消息: {result['message']}")
 
-    # 5. 测试系统环境变量设置（仅在有管理员权限时）
-    print("\n5. 系统环境变量设置:")
+    # 5. 测试整合的模型切换功能（包括环境变量设置）
+    print("\n5. 整合的模型切换功能:")
+    models = mm.list_available_models()
+    if models:
+        # 切换到第一个模型并测试整合功能
+        model_name = models[0]['name']
+        result = mm.switch_model(model_name)
+        print(f"   执行结果: {result['success']}")
+        print(f"   详细消息: {result['message']}")
+        if result.get('environment_result'):
+            print(f"   环境变量结果: {result['environment_result']['message']}")
+        if result.get('system_result'):
+            print(f"   系统变量结果: {result['system_result']['message']}")
+    else:
+        print("   没有可用的模型用于测试")
+
+    # 6. 测试系统环境变量设置（仅在有管理员权限时）
+    print("\n6. 系统环境变量设置:")
     if is_admin:
         result = mm.set_system_environment_vars()
         print(f"   执行结果: {result['success']}")
@@ -52,8 +68,8 @@ def test_all_features():
     else:
         print("   需要管理员权限才能测试此功能")
 
-    # 6. 测试所有可用模型
-    print("\n6. 所有可用模型:")
+    # 7. 测试所有可用模型
+    print("\n7. 所有可用模型:")
     models = mm.list_available_models()
     for model in models:
         status = "[当前]" if model["is_current"] else ""
