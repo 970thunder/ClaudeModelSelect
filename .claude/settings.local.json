@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python -c \"\nimport json\nprint(''JSON模块测试通过'')\nconfig = {\n    ''models'': [{\n        ''name'': ''测试模型'',\n        ''base_url'': ''https://api.test.com/'',\n        ''model'': ''test-model'',\n        ''api_key'': ''test-key''\n    }],\n    ''current_model'': ''测试模型''\n}\nx = json.dumps(config, indent=2)\nprint(''JSON序列化测试通过'')\nprint(''导入导出功能基础测试完成'')\n\")"
+      "Bash(python -m py_compile claude_model_manager/pyqt_gui.py)",
+      "Bash(pip install pyinstaller)",
+      "Bash(python build_exe.py)",
+      "Bash(del build_exe.spec build_exe.py)",
+      "Bash(pyinstaller --clean --noconfirm build_exe.spec)"
     ],
     "deny": [],
     "ask": []

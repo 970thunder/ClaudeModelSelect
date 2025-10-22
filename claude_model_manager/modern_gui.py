@@ -24,19 +24,53 @@ class ModernModelManagerGUI:
         # Set window icon
         self.root.iconbitmap(default=None)  # Will use default tkinter icon
 
-        # Modern theme colors
-        self.colors = {
-            'primary': '#2563eb',      # Blue
-            'primary_light': '#3b82f6', # Light blue
-            'secondary': '#64748b',    # Gray
-            'success': '#10b981',      # Green
-            'warning': '#f59e0b',      # Amber
-            'error': '#ef4444',        # Red
-            'background': '#0f172a',   # Dark blue-gray
-            'surface': '#1e293b',      # Card background
-            'on_surface': '#f1f5f9',   # Text on dark
-            'border': '#334155'        # Border color
+        # Theme configuration
+        self.current_theme = "dark"  # Default theme
+        self.themes = {
+            'dark': {
+                'primary': '#2563eb',
+                'primary_light': '#3b82f6',
+                'secondary': '#64748b',
+                'success': '#10b981',
+                'warning': '#f59e0b',
+                'error': '#ef4444',
+                'background': '#0f172a',
+                'surface': '#1e293b',
+                'on_surface': '#f1f5f9',
+                'border': '#334155'
+            },
+            'light': {
+                'primary': '#1e40af',
+                'primary_light': '#3b82f6',
+                'secondary': '#6b7280',
+                'success': '#047857',
+                'warning': '#d97706',
+                'error': '#dc2626',
+                'background': '#f8fafc',
+                'surface': '#ffffff',
+                'on_surface': '#1e293b',
+                'border': '#e2e8f0'
+            }
         }
+        self.colors = self.themes[self.current_theme]
+
+        # Add theme selection to UI
+        self.setup_theme_ui()
+
+    def setup_theme_ui(self):
+        """Add theme selection UI to the main interface"""
+        # Add theme selector to header
+        self.theme_var = tk.StringVar(value=self.current_theme)
+        self.theme_selector = ttk.Combobox(self.root, textvariable=self.theme_var,
+                                          values=['dark', 'light'], state='readonly')
+        self.theme_selector.set(self.current_theme)
+        self.theme_selector.pack(side='right', padx=10)
+        self.theme_selector.bind('<<ComboboxSelected>>', self.on_theme_changed)
+
+    def on_theme_changed(self, event):
+        """Handle theme selection change"""
+        selected_theme = self.theme_var.get()
+        self.set_theme(selected_theme)
 
         # Configure styles
         self.setup_styles()
@@ -47,6 +81,21 @@ class ModernModelManagerGUI:
 
         # Create GUI
         self.setup_gui()
+
+    def set_theme(self, theme_name):
+        """Switch between light and dark themes"""
+        self.current_theme = theme_name
+        self.colors = self.themes[theme_name]
+        self.setup_styles()
+        self.refresh_all_widgets()
+
+    def refresh_all_widgets(self):
+        """Refresh all widgets to apply new theme"""
+        # Reconfigure root window
+        self.root.configure(bg=self.colors['background'])
+
+        # Update status label and other dynamic elements
+        self.refresh_model_list()
 
     def setup_styles(self):
         """Setup modern ttk styles"""
@@ -88,6 +137,40 @@ class ModernModelManagerGUI:
                        background=self.colors['primary'],
                        foreground='white',
                        borderwidth=0)
+
+        # Configure treeview row colors for empty cells
+        if self.current_theme == 'dark':
+            style.map('Modern.Treeview',
+                     background=[('selected', self.colors['primary_light'])])
+            # Ensure empty cells have proper background in dark mode
+            style.configure('Modern.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'],
+                           fieldbackground=self.colors['surface'],
+                           borderwidth=0)
+            # Configure tag styling for consistent background
+            style.configure('model_row.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'])
+            style.configure('current_model.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'])
+        else:
+            style.map('Modern.Treeview',
+                     background=[('selected', self.colors['primary'])])
+            # Ensure empty cells have proper background in light mode
+            style.configure('Modern.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'],
+                           fieldbackground=self.colors['surface'],
+                           borderwidth=0)
+            # Configure tag styling for consistent background
+            style.configure('model_row.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'])
+            style.configure('current_model.Treeview',
+                           background=self.colors['surface'],
+                           foreground=self.colors['on_surface'])
 
         # Configure labels
         style.configure('Title.TLabel',
@@ -251,7 +334,9 @@ class ModernModelManagerGUI:
             self.status_label.config(text="未选择模型", foreground=self.colors['warning'])
 
         self.current_model_info.insert(1.0, current_text)
-        self.current_model_info.config(state='disabled')
+        self.current_model_info.config(state='disabled',
+                                      bg=self.colors['surface'],
+                                      fg=self.colors['on_surface'])
 
         # Populate model list with styled items
         models = self.model_manager.list_available_models()
@@ -259,18 +344,19 @@ class ModernModelManagerGUI:
             api_key_icon = "🔑" if model["api_key_set"] else "❌"
             status_icon = "✅" if model["is_current"] else ""
 
-            self.model_tree.insert("", "end", values=(
-                f"{model['name']}",
-                model["base_url"],
-                model["model"],
+            # Insert with proper tag for theme-aware styling
+            tag = 'current_model' if model["is_current"] else 'model_row'
+            item = self.model_tree.insert("", "end", values=(
+                f"{model['name']}" if model['name'] else "",
+                model["base_url"] if model["base_url"] else "",
+                model["model"] if model["model"] else "",
                 api_key_icon,
                 status_icon
-            ))
+            ), tags=(tag,))
 
             # Add styling for current model
             if model["is_current"]:
-                current_item = self.model_tree.get_children()[-1]
-                self.model_tree.selection_set(current_item)
+                self.model_tree.selection_set(item)
 
         # Update environment commands
         self.update_environment_commands()
@@ -287,7 +373,9 @@ class ModernModelManagerGUI:
         else:
             self.env_text.insert(tk.END, "未选择模型。请选择模型以查看环境变量命令。")
 
-        self.env_text.config(state='disabled')
+        self.env_text.config(state='disabled',
+                            bg=self.colors['surface'],
+                            fg=self.colors['on_surface'])
 
     def get_selected_model(self) -> Optional[str]:
         """Get the name of the currently selected model"""

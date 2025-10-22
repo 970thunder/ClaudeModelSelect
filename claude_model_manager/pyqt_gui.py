@@ -36,6 +36,27 @@ class WorkerThread(QThread):
             self.finished.emit({"success": False, "error": str(e)})
 
 
+class SwitchModelThread(QThread):
+    """Worker thread for model switching with progress indication"""
+    finished = pyqtSignal(dict)
+    progress_update = pyqtSignal(str)
+
+    def __init__(self, model_manager, model_name):
+        super().__init__()
+        self.model_manager = model_manager
+        self.model_name = model_name
+
+    def run(self):
+        try:
+            self.progress_update.emit("正在切换模型...")
+            result = self.model_manager.switch_model(self.model_name)
+            self.progress_update.emit("模型切换完成")
+            self.finished.emit(result)
+        except Exception as e:
+            error_result = {"success": False, "message": f"切换过程中发生异常: {str(e)}"}
+            self.finished.emit(error_result)
+
+
 class ModernPyQtGUI(QMainWindow):
     """Modern PyQt GUI for model management"""
 
@@ -60,12 +81,17 @@ class ModernPyQtGUI(QMainWindow):
         self.setWindowTitle("Claude Code 模型管理器 (PyQt)")
         self.setGeometry(100, 100, 1200, 800)
 
-        # Central widget
+        # Use default window frame with custom styling
+        self.setWindowFlags(Qt.Window)
+
+        # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Main layout
+        # Main layout with custom margins
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
 
         # Header
         header_layout = self.create_header()
@@ -89,10 +115,38 @@ class ModernPyQtGUI(QMainWindow):
 
     def setup_styles(self):
         """Setup modern styling"""
-        # Set dark theme
+        # Set default dark theme
+        self.current_theme = "dark"
+        self.apply_dark_theme()
+
+    def apply_dark_theme(self):
+        """Apply dark theme styling"""
         self.setStyleSheet("""
+            /* Main window */
             QMainWindow {
                 background-color: #1e1e1e;
+                color: #ffffff;
+            }
+            /* Custom title bar for Windows */
+            QMainWindow QWidget#widget_titlebar {
+                background-color: #2d2d2d;
+                color: #ffffff;
+                border-bottom: 1px solid #444;
+            }
+            /* Title bar buttons */
+            QPushButton#btn_minimize, QPushButton#btn_maximize, QPushButton#btn_close {
+                background-color: transparent;
+                color: #cccccc;
+                border: none;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            QPushButton#btn_minimize:hover, QPushButton#btn_maximize:hover {
+                background-color: #404040;
+                color: #ffffff;
+            }
+            QPushButton#btn_close:hover {
+                background-color: #e81123;
                 color: #ffffff;
             }
             QTabWidget::pane {
@@ -115,6 +169,7 @@ class ModernPyQtGUI(QMainWindow):
             }
             QTableWidget::item:selected {
                 background-color: #007acc;
+                color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #333;
@@ -158,7 +213,311 @@ class ModernPyQtGUI(QMainWindow):
             QLabel {
                 color: #cccccc;
             }
+            QComboBox {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                border: 1px solid #444;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 1px solid #444;
+                width: 20px;
+            }
+            /* Dialog styling for better looking input dialogs */
+            QDialog {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                border: 1px solid #444;
+                border-radius: 8px;
+            }
+            QDialog QLabel {
+                color: #cccccc;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px;
+            }
+            QDialog QLineEdit {
+                background-color: #1e1e1e;
+                color: #cccccc;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 13px;
+                margin: 8px;
+                min-height: 20px;
+            }
+            QDialog QLineEdit:focus {
+                border-color: #007acc;
+                background-color: #252526;
+                outline: none;
+            }
+            QDialog QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 20px;
+                border-radius: 4px;
+                margin: 8px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QDialog QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QDialog QPushButton:pressed {
+                background-color: #004578;
+            }
+            QDialog QPushButton:default {
+                background-color: #4ec9b0;
+            }
+            QDialog QPushButton:default:hover {
+                background-color: #3db392;
+            }
+            /* File dialog styling */
+            QFileDialog QWidget {
+                background-color: #2d2d2d;
+                color: #cccccc;
+            }
+            QFileDialog QLineEdit {
+                background-color: #1e1e1e;
+                color: #cccccc;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 6px 10px;
+            }
+            /* Table row headers for line numbers */
+            QTableWidget::item {
+                padding: 6px 8px;
+                border-bottom: 1px solid #444;
+            }
+            QTableWidget QTableCornerButton::section {
+                background-color: #333;
+                border: 1px solid #444;
+            }
+            /* Row number styling */
+            QTableWidget QTableWidget::item {
+                background-color: transparent;
+            }
+            QTableWidget::item {
+                border-bottom: 1px solid #444;
+            }
+            /* Vertical header for row numbers */
+            QTableWidget QHeaderView::section:vertical {
+                background-color: #333;
+                color: #cccccc;
+                border: 1px solid #444;
+                padding: 6px 8px;
+            }
         """)
+
+    def apply_light_theme(self):
+        """Apply light theme styling"""
+        self.setStyleSheet("""
+            /* Main window */
+            QMainWindow {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            /* Custom title bar for Windows */
+            QMainWindow QWidget#widget_titlebar {
+                background-color: #f0f0f0;
+                color: #000000;
+                border-bottom: 1px solid #ddd;
+            }
+            /* Title bar buttons */
+            QPushButton#btn_minimize, QPushButton#btn_maximize, QPushButton#btn_close {
+                background-color: transparent;
+                color: #666666;
+                border: none;
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            QPushButton#btn_minimize:hover, QPushButton#btn_maximize:hover {
+                background-color: #e0e0e0;
+                color: #000000;
+            }
+            QPushButton#btn_close:hover {
+                background-color: #e81123;
+                color: #ffffff;
+            }
+            QTabWidget::pane {
+                border: 1px solid #ddd;
+                background-color: #f8f8f8;
+            }
+            QTabBar::tab {
+                background-color: #e0e0e0;
+                color: #333333;
+                padding: 8px 16px;
+                border: 1px solid #ddd;
+            }
+            QTabBar::tab:selected {
+                background-color: #007acc;
+                color: #ffffff;
+            }
+            QTableWidget {
+                background-color: #ffffff;
+                color: #333333;
+                gridline-color: #ddd;
+            }
+            QTableWidget::item:selected {
+                background-color: #007acc;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #f0f0f0;
+                color: #333333;
+                padding: 8px;
+                border: 1px solid #ddd;
+            }
+            QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QPushButton:pressed {
+                background-color: #004578;
+            }
+            QPushButton.danger {
+                background-color: #d13438;
+            }
+            QPushButton.danger:hover {
+                background-color: #b0262a;
+            }
+            QPushButton.success {
+                background-color: #107c10;
+            }
+            QPushButton.success:hover {
+                background-color: #0e6b0e;
+            }
+            QTextEdit {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-family: 'Consolas', monospace;
+                font-size: 12px;
+            }
+            QLabel {
+                color: #333333;
+            }
+            QComboBox {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 1px solid #ddd;
+                width: 20px;
+            }
+            /* Dialog styling for better looking input dialogs */
+            QDialog {
+                background-color: #f8f8f8;
+                color: #333333;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+            }
+            QDialog QLabel {
+                color: #333333;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 8px;
+            }
+            QDialog QLineEdit {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 13px;
+                margin: 8px;
+                min-height: 20px;
+            }
+            QDialog QLineEdit:focus {
+                border-color: #007acc;
+                background-color: #f5f5f5;
+                outline: none;
+            }
+            QDialog QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 20px;
+                border-radius: 4px;
+                margin: 8px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QDialog QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QDialog QPushButton:pressed {
+                background-color: #004578;
+            }
+            QDialog QPushButton:default {
+                background-color: #107c10;
+            }
+            QDialog QPushButton:default:hover {
+                background-color: #0e6b0e;
+            }
+            /* File dialog styling */
+            QFileDialog QWidget {
+                background-color: #ffffff;
+                color: #333333;
+            }
+            QFileDialog QLineEdit {
+                background-color: #ffffff;
+                color: #333333;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 6px 10px;
+            }
+            /* Table row headers for line numbers */
+            QTableWidget::item {
+                padding: 6px 8px;
+                border-bottom: 1px solid #ddd;
+            }
+            QTableWidget QTableCornerButton::section {
+                background-color: #f0f0f0;
+                border: 1px solid #ddd;
+            }
+            /* Row number styling */
+            QTableWidget QTableWidget::item {
+                background-color: transparent;
+            }
+            QTableWidget::item {
+                border-bottom: 1px solid #ddd;
+            }
+            /* Vertical header for row numbers */
+            QTableWidget QHeaderView::section:vertical {
+                background-color: #f0f0f0;
+                color: #333333;
+                border: 1px solid #ddd;
+                padding: 6px 8px;
+            }
+        """)
+
+    def toggle_maximize(self):
+        """Toggle between maximize and normal window state"""
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
 
     def create_header(self):
         """Create header layout"""
@@ -260,13 +619,33 @@ class ModernPyQtGUI(QMainWindow):
         """Create settings tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        # Theme settings
-        layout.addWidget(QLabel("主题设置:"))
+        # Theme settings card
+        theme_frame = QFrame()
+        theme_frame.setFrameShape(QFrame.StyledPanel)
+        theme_layout = QVBoxLayout(theme_frame)
+
+        theme_title = QLabel("🎨 主题设置")
+        theme_title.setFont(QFont("Arial", 14, QFont.Bold))
+        theme_layout.addWidget(theme_title)
+
+        theme_combo_layout = QHBoxLayout()
+        theme_combo_layout.addWidget(QLabel("选择主题:"))
         theme_combo = QComboBox()
         theme_combo.addItems(["深色主题", "浅色主题"])
+        theme_combo.setCurrentText("深色主题")
         theme_combo.currentTextChanged.connect(self.change_theme)
-        layout.addWidget(theme_combo)
+        theme_combo_layout.addWidget(theme_combo)
+        theme_combo_layout.addStretch()
+        theme_layout.addLayout(theme_combo_layout)
+
+        theme_desc = QLabel("深色主题适合在弱光环境下使用，浅色主题适合明亮环境")
+        theme_desc.setStyleSheet("color: #888; font-style: italic;")
+        theme_layout.addWidget(theme_desc)
+
+        layout.addWidget(theme_frame)
 
         layout.addStretch()
 
@@ -436,13 +815,100 @@ class ModernPyQtGUI(QMainWindow):
         self.switch_to_model()
 
     def switch_to_model(self):
-        """Switch to selected model"""
+        """Switch to selected model with progress indication"""
         model_name = self.get_selected_model()
         if not model_name:
             QMessageBox.warning(self, "警告", "请选择要切换到的模型")
             return
 
-        result = self.model_manager.switch_model(model_name)
+        # Create progress dialog
+        self.progress_dialog = QMessageBox(self)
+        self.progress_dialog.setWindowTitle("切换模型")
+        self.progress_dialog.setText(f"正在切换到模型 '{model_name}'...")
+        self.progress_dialog.setStandardButtons(QMessageBox.Cancel)
+
+        # Add custom styles to the progress dialog
+        self.progress_dialog.setStyleSheet("""
+            QMessageBox {
+                background-color: #2d2d2d;
+                color: #cccccc;
+                border: 1px solid #444;
+                border-radius: 8px;
+            }
+            QMessageBox QLabel {
+                color: #cccccc;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 15px;
+            }
+            QMessageBox QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin: 8px;
+                min-width: 80px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #005a9e;
+            }
+        """) if self.current_theme == "dark" else self.progress_dialog.setStyleSheet("""
+            QMessageBox {
+                background-color: #f8f8f8;
+                color: #333333;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+            }
+            QMessageBox QLabel {
+                color: #333333;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 15px;
+            }
+            QMessageBox QPushButton {
+                background-color: #007acc;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                margin: 8px;
+                min-width: 80px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #005a9e;
+            }
+        """)
+
+        # Disable the switch button while processing
+        self.switch_btn.setEnabled(False)
+        self.switch_btn.setText("🔄 切换中...")
+
+        # Create worker thread
+        self.switch_worker = SwitchModelThread(self.model_manager, model_name)
+        self.switch_worker.finished.connect(self.on_switch_finished)
+        self.switch_worker.progress_update.connect(self.on_switch_progress_update)
+        self.switch_worker.start()
+
+        # Start the dialog
+        self.progress_dialog.exec()
+
+    def on_switch_progress_update(self, message):
+        """Handle progress updates during model switching"""
+        if self.progress_dialog:
+            self.progress_dialog.setText(message)
+
+    def on_switch_finished(self, result):
+        """Handle model switch completion"""
+        # Close progress dialog
+        if self.progress_dialog:
+            self.progress_dialog.done(0)
+
+        # Re-enable the switch button
+        self.switch_btn.setEnabled(True)
+        self.switch_btn.setText("🚀 切换到模型")
+
+        model_name = self.get_selected_model()
 
         if result["success"]:
             self.statusBar().showMessage(f"已切换到模型 '{model_name}'")
@@ -633,23 +1099,11 @@ class ModernPyQtGUI(QMainWindow):
     def change_theme(self, theme_name):
         """Change application theme"""
         if theme_name == "浅色主题":
-            # Light theme stylesheet
-            self.setStyleSheet("""
-                QMainWindow {
-                    background-color: #ffffff;
-                    color: #000000;
-                }
-                # Other light theme styles...
-            """)
+            self.current_theme = "light"
+            self.apply_light_theme()
         else:
-            # Default dark theme
-            self.setStyleSheet("""
-                QMainWindow {
-                    background-color: #1e1e1e;
-                    color: #ffffff;
-                }
-                # Default dark theme styles...
-            """)
+            self.current_theme = "dark"
+            self.apply_dark_theme()
 
     def closeEvent(self, event):
         """Handle application close"""
