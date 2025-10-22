@@ -187,6 +187,15 @@ ClaudeModelSelect/
     ├── modern_gui.py      # 增强Tkinter现代化界面
     └── pyqt_gui.py        # PyQt现代化界面（支持导入导出）
 ```
+完整打包命令：
+  pyinstaller --onefile --noconsole --name ClaudeModelManager --add-data "claude_model_manager;claude_model_manager"
+   --hidden-import PyQt5 --hidden-import PyQt5.QtCore --hidden-import PyQt5.QtGui --hidden-import PyQt5.QtWidgets
+  --hidden-import requests main_pyqt.py
+
+  简化的打包选项：
+  pyinstaller main_pyqt.py
+
+  pyinstaller --onefile --noconsole main_pyqt.py
 
 ### 主要特性对比
 

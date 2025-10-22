@@ -5,7 +5,13 @@
       "Bash(pip install pyinstaller)",
       "Bash(python build_exe.py)",
       "Bash(del build_exe.spec build_exe.py)",
-      "Bash(pyinstaller --clean --noconfirm build_exe.spec)"
+      "Bash(pyinstaller --clean --noconfirm build_exe.spec)",
+      "Bash(pyinstaller --onefile --noconsole --name ClaudeModelManager --add-data \"claude_model_manager;claude_model_manager\" --hidden-import PyQt5 --hidden-import PyQt5.QtCore --hidden-import PyQt5.QtGui --hidden-import PyQt5.QtWidgets --hidden-import requests main_pyqt.py)",
+      "Bash(dir dist)",
+      "Bash(dir \"dist\\ClaudeModelManager.exe\")",
+      "Bash(start ClaudeModelManager.exe)",
+      "Bash(git rm --cached .env)",
+      "Bash(git rm --cached claude_models.json)"
     ],
     "deny": [],
     "ask": []

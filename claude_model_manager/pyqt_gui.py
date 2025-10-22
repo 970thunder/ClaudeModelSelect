@@ -11,7 +11,8 @@ from typing import Optional, Dict, List
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
                             QWidget, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
                             QTabWidget, QTextEdit, QMessageBox, QInputDialog, QFileDialog,
-                            QHeaderView, QSplitter, QFrame, QProgressBar, QComboBox)
+                            QHeaderView, QSplitter, QFrame, QProgressBar, QComboBox,
+                            QDialog, QLineEdit, QFormLayout, QDialogButtonBox)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor, QPixmap
 
@@ -55,6 +56,98 @@ class SwitchModelThread(QThread):
         except Exception as e:
             error_result = {"success": False, "message": f"切换过程中发生异常: {str(e)}"}
             self.finished.emit(error_result)
+
+
+class AddModelDialog(QDialog):
+    """Dialog for adding/editing a model with a single form"""
+
+    def __init__(self, parent=None, model=None):
+        super().__init__(parent)
+        self.model = model
+        self.setup_ui()
+
+    def setup_ui(self):
+        """Setup the dialog UI"""
+        self.setWindowTitle("添加模型" if self.model is None else "编辑模型")
+        self.setModal(True)
+        self.resize(500, 350)
+
+        layout = QVBoxLayout(self)
+
+        # Create form layout
+        form_layout = QFormLayout()
+
+        # Model name
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("输入模型名称，如: Claude-3.5-Sonnet")
+        if self.model:
+            self.name_edit.setText(self.model.name)
+        form_layout.addRow("模型名称 *:", self.name_edit)
+
+        # Base URL
+        self.url_edit = QLineEdit()
+        self.url_edit.setPlaceholderText("输入基础URL，如: https://api.anthropic.com")
+        if self.model:
+            self.url_edit.setText(self.model.base_url)
+        form_layout.addRow("基础URL *:", self.url_edit)
+
+        # Model ID
+        self.model_id_edit = QLineEdit()
+        self.model_id_edit.setPlaceholderText("输入模型ID，如: claude-3-5-sonnet-20241022")
+        if self.model:
+            self.model_id_edit.setText(self.model.model)
+        form_layout.addRow("模型ID *:", self.model_id_edit)
+
+        # API Key
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setPlaceholderText("输入API密钥 (可选)")
+        self.api_key_edit.setEchoMode(QLineEdit.Password)
+        if self.model:
+            self.api_key_edit.setText(self.model.api_key)
+        form_layout.addRow("API密钥:", self.api_key_edit)
+
+        layout.addLayout(form_layout)
+
+        # Add description
+        desc_label = QLabel("标注 * 的字段为必填项")
+        desc_label.setStyleSheet("color: #888; font-style: italic;")
+        layout.addWidget(desc_label)
+
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_model_data(self):
+        """Get the model data from the form"""
+        return {
+            'name': self.name_edit.text().strip(),
+            'base_url': self.url_edit.text().strip(),
+            'model': self.model_id_edit.text().strip(),
+            'api_key': self.api_key_edit.text().strip()
+        }
+
+    def validate_form(self):
+        """Validate the form data"""
+        data = self.get_model_data()
+
+        if not data['name']:
+            return False, "模型名称不能为空"
+        if not data['base_url']:
+            return False, "基础URL不能为空"
+        if not data['model']:
+            return False, "模型ID不能为空"
+
+        return True, ""
+
+    def accept(self):
+        """Handle accept with validation"""
+        is_valid, message = self.validate_form()
+        if not is_valid:
+            QMessageBox.warning(self, "输入错误", message)
+            return
+        super().accept()
 
 
 class ModernPyQtGUI(QMainWindow):
@@ -736,31 +829,23 @@ class ModernPyQtGUI(QMainWindow):
         return self.model_table.item(selection[0].row(), 0).text()
 
     def add_model(self):
-        """Add a new model"""
-        name, ok = QInputDialog.getText(self, "添加模型", "模型名称:")
-        if not ok or not name:
-            return
+        """Add a new model using a single form dialog"""
+        dialog = AddModelDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_model_data()
+            name = data['name']
+            base_url = data['base_url']
+            model_id = data['model']
+            api_key = data['api_key']
 
-        base_url, ok = QInputDialog.getText(self, "添加模型", "基础URL:")
-        if not ok or not base_url:
-            return
-
-        model_id, ok = QInputDialog.getText(self, "添加模型", "模型ID:")
-        if not ok or not model_id:
-            return
-
-        api_key, ok = QInputDialog.getText(self, "添加模型", "API密钥 (可选):")
-        if not ok:
-            return
-
-        if self.model_manager.add_model(name, base_url, model_id, api_key):
-            self.refresh_model_list()
-            self.statusBar().showMessage(f"模型 '{name}' 添加成功")
-        else:
-            QMessageBox.warning(self, "错误", f"模型 '{name}' 已存在")
+            if self.model_manager.add_model(name, base_url, model_id, api_key):
+                self.refresh_model_list()
+                self.statusBar().showMessage(f"模型 '{name}' 添加成功")
+            else:
+                QMessageBox.warning(self, "错误", f"模型 '{name}' 已存在")
 
     def edit_model(self):
-        """Edit selected model"""
+        """Edit selected model using a single form dialog"""
         model_name = self.get_selected_model()
         if not model_name:
             QMessageBox.warning(self, "警告", "请选择要编辑的模型")
@@ -771,27 +856,19 @@ class ModernPyQtGUI(QMainWindow):
             QMessageBox.critical(self, "错误", "选择的模型未找到")
             return
 
-        name, ok = QInputDialog.getText(self, "编辑模型", "模型名称:", text=model.name)
-        if not ok or not name:
-            return
+        dialog = AddModelDialog(self, model)
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_model_data()
+            new_name = data['name']
+            base_url = data['base_url']
+            model_id = data['model']
+            api_key = data['api_key']
 
-        base_url, ok = QInputDialog.getText(self, "编辑模型", "基础URL:", text=model.base_url)
-        if not ok or not base_url:
-            return
-
-        model_id, ok = QInputDialog.getText(self, "编辑模型", "模型ID:", text=model.model)
-        if not ok or not model_id:
-            return
-
-        api_key, ok = QInputDialog.getText(self, "编辑模型", "API密钥:", text=model.api_key)
-        if not ok:
-            return
-
-        if self.model_manager.update_model(model.name, name, base_url, model_id, api_key):
-            self.refresh_model_list()
-            self.statusBar().showMessage(f"模型 '{name}' 更新成功")
-        else:
-            QMessageBox.critical(self, "错误", "更新模型失败")
+            if self.model_manager.update_model(model.name, new_name, base_url, model_id, api_key):
+                self.refresh_model_list()
+                self.statusBar().showMessage(f"模型 '{new_name}' 更新成功")
+            else:
+                QMessageBox.critical(self, "错误", "更新模型失败")
 
     def delete_model(self):
         """Delete selected model"""
