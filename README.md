@@ -1,3 +1,5 @@
+
+
 # Claude Code 模型管理器
 
 一个基于Python的可视化工具，用于管理和切换Claude Code模型。该工具提供用户友好的界面来配置不同的AI模型，并轻松在它们之间切换以供Claude Code使用。
@@ -5,19 +7,23 @@
 ## 特性
 
 ### 界面特性
-- **💎 现代化UI界面**: 支持PyQt现代化界面，专业外观设计
-- **🎨 多种界面选择**: PyQt现代化界面 / Tkinter增强界面 / Tkinter经典界面
-- **🌙 深色主题**: 护眼深色主题，视觉效果舒适
-- **📱 响应式布局**: 适应不同屏幕尺寸，支持窗口缩放
+- **现代化UI界面**: 支持PyQt现代化界面，专业外观设计
+- **多种界面选择**: PyQt现代化界面 / Tkinter增强界面 / Tkinter经典界面
+- **深色主题**: 护眼深色主题，视觉效果舒适
+- **响应式布局**: 适应不同屏幕尺寸，支持窗口缩放
+
+![image-20251023110041252](C:\Users\Hyper\AppData\Roaming\Typora\typora-user-images\image-20251023110041252.png)
 
 ### 核心功能
-- **🔧 可视化模型管理**: 中文GUI界面，用于添加、编辑和删除模型配置
-- **🚀 智能模型切换**: 一键集成环境变量和系统变量设置
-- **📁 配置文件管理**: 导入/导出JSON配置文件，方便备份和分享
-- **⚡ 环境变量管理**: 自动生成并设置环境变量命令
-- **🛡️ 安全的API密钥存储**: 加密存储API密钥
-- **🌐 跨平台支持**: 支持Windows、macOS和Linux
-- **🎯 智能权限管理**: 自动检测管理员权限，友好提示
+- **可视化模型管理**: 中文GUI界面，用于添加、编辑和删除模型配置
+- **智能模型切换**: 一键集成环境变量和系统变量设置
+- **配置文件管理**: 导入/导出JSON配置文件，方便备份和分享
+- **环境变量管理**: 自动生成并设置环境变量命令
+- **安全的API密钥存储**: 加密存储API密钥
+- **跨平台支持**: 支持Windows、macOS和Linux
+- **智能权限管理**: 自动检测管理员权限，友好提示
+
+![image-20251023110055433](https://yhyper.dpdns.org/photostore/2025/10/image-20251023110055433.png)
 
 ## Installation
 
@@ -72,7 +78,7 @@ python -c "from claude_model_manager.gui import ModelManagerGUI; app = ModelMana
 python -c "from claude_model_manager.modern_gui import ModernModelManagerGUI; app = ModernModelManagerGUI(); app.run()"
 ```
 
-启动后会显示界面选择菜单：
+纯代码运行启动后会显示界面选择菜单（exe运行默认PyQt界面）：
 ```
 🎯 Claude Code 模型管理器
 ========================================
@@ -231,7 +237,3 @@ Model configurations are stored in:
 1. 检查所有必填字段是否已填写
 2. 验证您的API密钥是否正确
 3. 确保基础URL可访问
-
-## License
-
-This project is provided as-is for educational and personal use.
