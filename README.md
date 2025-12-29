@@ -237,3 +237,7 @@ Model configurations are stored in:
 1. 检查所有必填字段是否已填写
 2. 验证您的API密钥是否正确
 3. 确保基础URL可访问
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=970thunder/ClaudeModelSelect&type=date&legend=top-left)](https://www.star-history.com/#970thunder/ClaudeModelSelect&type=date&legend=top-left)
