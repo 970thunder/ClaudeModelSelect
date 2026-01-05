@@ -193,15 +193,42 @@ ClaudeModelSelect/
     ├── modern_gui.py      # 增强Tkinter现代化界面
     └── pyqt_gui.py        # PyQt现代化界面（支持导入导出）
 ```
-完整打包命令：
-  pyinstaller --onefile --noconsole --name ClaudeModelManager --add-data "claude_model_manager;claude_model_manager"
-   --hidden-import PyQt5 --hidden-import PyQt5.QtCore --hidden-import PyQt5.QtGui --hidden-import PyQt5.QtWidgets
-  --hidden-import requests main_pyqt.py
+## 打包指南
 
-  简化的打包选项：
-  pyinstaller main_pyqt.py
+项目已配置自动化构建脚本，支持跨平台一键打包。
 
-  pyinstaller --onefile --noconsole main_pyqt.py
+### 自动化打包 (推荐)
+
+在项目根目录下运行构建脚本，系统会自动识别当前操作系统并执行相应的打包流程：
+
+```bash
+python build.py
+```
+
+### 平台特定说明
+
+#### Windows
+- **输出**: `dist/ClaudeModelManager.exe` (单文件可执行程序)
+- **配置**: 使用 `build_windows.spec`
+
+#### macOS
+- **输出**: `dist/ClaudeModelManager.app` (macOS 应用程序包)
+- **配置**: 使用 `build_macos.spec`
+- **DMG镜像**: 如果安装了 `create-dmg` (推荐 `brew install create-dmg`)，脚本会自动生成 `ClaudeModelManager.dmg` 安装镜像。
+
+### 手动打包 (高级)
+
+如果需要手动控制打包参数，可以使用以下命令：
+
+**Windows:**
+```bash
+pyinstaller build_windows.spec
+```
+
+**macOS:**
+```bash
+pyinstaller build_macos.spec
+```
 
 ### 主要特性对比
 

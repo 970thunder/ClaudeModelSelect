@@ -9,9 +9,14 @@ import requests
 import json
 import platform
 import ctypes
-import winreg
 from typing import Dict, List, Optional
 from .config import ConfigManager, ModelConfig
+
+# Conditionally import winreg only on Windows
+if sys.platform == "win32":
+    import winreg
+else:
+    winreg = None
 
 
 class ModelManager:
@@ -260,8 +265,14 @@ class ModelManager:
             }
 
             # Determine the endpoint based on the base URL
-            if "anthropic" in model.base_url.lower():
-                endpoint = f"{model.base_url.rstrip('/')}/v1/messages"
+            base_url_clean = model.base_url.rstrip('/')
+            
+            if "anthropic" in base_url_clean.lower():
+                if base_url_clean.endswith("/v1/messages"):
+                    endpoint = base_url_clean
+                else:
+                    endpoint = f"{base_url_clean}/v1/messages"
+                    
                 # Adjust payload for Anthropic API
                 test_message = {
                     "model": model.model,
@@ -273,11 +284,17 @@ class ModelManager:
                         }
                     ]
                 }
-            elif "siliconflow" in model.base_url.lower():
-                endpoint = f"{model.base_url.rstrip('/')}/v1/chat/completions"
+            elif "siliconflow" in base_url_clean.lower():
+                if base_url_clean.endswith("/v1/chat/completions"):
+                    endpoint = base_url_clean
+                else:
+                    endpoint = f"{base_url_clean}/v1/chat/completions"
             else:
                 # Assume OpenAI-compatible API
-                endpoint = f"{model.base_url.rstrip('/')}/v1/chat/completions"
+                if base_url_clean.endswith("/v1/chat/completions"):
+                    endpoint = base_url_clean
+                else:
+                    endpoint = f"{base_url_clean}/v1/chat/completions"
 
             # Make the API call
             response = requests.post(
